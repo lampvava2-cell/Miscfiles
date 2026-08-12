@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>오늘의 날짜 & 절기 안내</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+background-color: #121212;
+color: #ffffff;
+font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+display: flex;
+flex-direction: column;
+align-items: center;
+justify-content: center;
+min-height: 100dvh;
+padding: 20px;
+text-align: center;
+user-select: none;
+}
+.card {
+background: #1e1e1e;
+padding: 40px 30px;
+border-radius: 24px;
+box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+width: 100%;
+max-width: 400px;
+border: 1px solid #2a2a2a;
+}
+.date-text { font-size: 1.8rem; font-weight: 700; color: #4da6ff; margin-bottom: 10px; }
+.day-text { font-size: 1.4rem; color: #e0e0e0; margin-bottom: 24px; font-weight: 500; }
+.solar-term { font-size: 1.2rem; font-weight: 600; color: #ffb347; line-height: 1.5; }
+.guide-text { margin-top: 25px; font-size: 0.85rem; color: #888888; }
+</style>
+</head>
+<body>
+
+<div class="card">
+<div id="dateDisplay" class="date-text">날짜 계산 중...</div>
+<div id="dayDisplay" class="day-text"></div>
+<div id="termDisplay" class="solar-term"></div>
+<div id="guideDisplay" class="guide-text"></div>
+</div>
+
+<script>
+// 21세기(2000~2099년) 24절기 계산 알고리즘
+const solarTermsInfo = [
+{ name: "소한", month: 1, c: 5.4055 }, { name: "대한", month: 1, c: 20.12 },
+{ name: "입춘", month: 2, c: 3.87 }, { name: "우수", month: 2, c: 18.73 },
+{ name: "경칩", month: 3, c: 5.63 }, { name: "춘분", month: 3, c: 20.646 },
+{ name: "청명", month: 4, c: 4.81 }, { name: "곡우", month: 4, c: 20.1 },
+{ name: "입하", month: 5, c: 5.52 }, { name: "소만", month: 5, c: 21.04 },
+{ name: "망종", month: 6, c: 5.678 }, { name: "하지", month: 6, c: 21.37 },
+{ name: "소서", month: 7, c: 7.108 }, { name: "대서", month: 7, c: 22.83 },
+{ name: "입추", month: 8, c: 7.5 }, { name: "처서", month: 8, c: 23.13 },
+{ name: "백로", month: 9, c: 7.646 }, { name: "추분", month: 9, c: 23.042 },
+{ name: "한로", month: 10, c: 8.318 }, { name: "상강", month: 10, c: 23.438 },
+{ name: "입동", month: 11, c: 7.438 }, { name: "소설", month: 11, c: 22.36 },
+{ name: "대설", month: 12, c: 7.18 }, { name: "동지", month: 12, c: 21.94 }
+ ];
+
+function getSolarTerm(date) {
+const year = date.getFullYear();
+const month = date.getMonth() + 1;
+const day = date.getDate();
+const yMod = year % 100;
+
+const monthTerms = solarTermsInfo.filter(t => t.month === month);
+let todayTerm = null;
+
+for (let term of monthTerms) {
+const termDay = Math.floor((yMod * 0.2422 + term.c) - Math.floor((yMod - 1) / 4));
+if (day === termDay) todayTerm = term.name;
+}
+
+return todayTerm ? 오늘은 24절기 중 하나인 ${todayTerm}입니다.:오늘에 해당하는 절기 당일은 아닙니다.`;
+}
+
+let speechText = "";
+let hasSpoken = false;
+
+// 한국어 여성 음성 선택 함수
+function getFemaleKoreanVoice(voices) {
+const koVoices = voices.filter(v => v.lang.includes('ko') || v.lang.includes('KO'));
+if (koVoices.length === 0) return null;
+
+// 대표적인 한국어 여성 음성 엔진 이름 우선 검색
+const femaleKeywords = ['yuna', 'heami', 'sun-hi', 'google', 'female', '여성', 'siri'];
+for (let voice of koVoices) {
+if (femaleKeywords.some(kw => voice.name.toLowerCase().includes(kw))) {
+return voice;
+}
+}
+return koVoices[0]; // 기본 한국어 음성 (스마트폰 기본 한국어는 대부분 여성음성)
+}
+
+function speakText() {
+if (hasSpoken) return;
+
+const synth = window.speechSynthesis;
+if (!synth) return;
+
+synth.cancel(); // 기존 재생 초기화
+
+const utterance = new SpeechSynthesisUtterance(speechText);
+utterance.lang = 'ko-KR';
+utterance.rate = 0.9; // 자연스러운 읽기 속도
+utterance.pitch = 1.1; // 약간 높여 여성 목소리 톤 강조
+
+const voices = synth.getVoices();
+const femaleVoice = getFemaleKoreanVoice(voices);
+if (femaleVoice) {
+utterance.voice = femaleVoice;
+}
+
+utterance.onstart = () => {
+hasSpoken = true;
+document.getElementById('guideDisplay').innerText = "🔊 음성 안내 진행 중";
+};
+
+utterance.onend = () => {
+document.getElementById('guideDisplay').innerText = "";
+};
+
+synth.speak(utterance);
+}
+
+function init() {
+const now = new Date();
+const year = now.getFullYear();
+const month = now.getMonth() + 1;
+const date = now.getDate();
+const days = ['일요일', '월요일', '화요일', '수요일', '목요일', '금요일', '토요일'];
+const dayName = days[now.getDay()];
+const termInfo = getSolarTerm(now);
+
+document.getElementById('dateDisplay').innerText = ``${year}년 {date}일`;
+document.getElementById('dayDisplay').innerText = dayName;
+document.getElementById('termDisplay').innerText = termInfo;
+
+speechText = 오늘은 ${year}년 ${month}월 ${date}일 ${dayName}입니다. ${termInfo};
+
+// 음성 엔진 로드 완료 시 자동 실행 시도
+if ('speechSynthesis' in window) {
+window.speechSynthesis.onvoiceschanged = () => {
+speakText();
+};
+speakText(); // 로드 완료 전 즉시 1차 시도
+}
+
+// 모바일 자동재생 정책 방어: 차단되었을 경우 화면 전체 아무 곳이나 한번 터치하면 즉시 재생
+const unlockAudio = () => {
+if (!hasSpoken) {
+speakText();
+}
+document.removeEventListener('touchstart', unlockAudio);
+document.removeEventListener('click', unlockAudio);
+};
+
+document.addEventListener('touchstart', unlockAudio);
+document.addEventListener('click', unlockAudio);
+}
+
+window.onload = init;
+</script>
+</body>
+</html>
